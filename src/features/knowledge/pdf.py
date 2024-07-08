@@ -34,8 +34,8 @@ async def index_pdf(
             )
             for part in split_text(
                 text=await read_pdf(source=source),
-                part_size=256,
-                part_overlap_size=32,
+                part_size=1024,
+                part_overlap_size=128,
                 count_size=count_text_tokens,
             )
         ],

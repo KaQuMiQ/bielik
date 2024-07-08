@@ -4,6 +4,7 @@ from typing import Any, Final, Literal, cast
 
 from chainlit import (
     Audio,
+    ChatProfile,
     ChatSettings,
     Component,
     ErrorMessage,
@@ -18,6 +19,7 @@ from chainlit import (
     on_chat_start,  # type: ignore
     on_message,  # type: ignore
     on_settings_update,  # type: ignore
+    set_chat_profiles,  # type: ignore
     set_starters,  # type: ignore
     user_session,
 )
@@ -79,9 +81,46 @@ dependencies: Final[ScopeDependencies] = ScopeDependencies(
                 tokenizer_json=None,
                 repeat_last_n=64,
             ),
+            "bielik:7bQ4": Which.GGUF(
+                tok_model_id="speakleash/Bielik-7B-Instruct-v0.1",
+                quantized_model_id="speakleash/Bielik-7B-Instruct-v0.1-GGUF",
+                quantized_filename="bielik-7b-instruct-v0.1.Q4_K_M.gguf",
+                repeat_last_n=64,
+            ),
+            "bielik:7bQ8": Which.GGUF(
+                tok_model_id="speakleash/Bielik-7B-Instruct-v0.1",
+                quantized_model_id="speakleash/Bielik-7B-Instruct-v0.1-GGUF",
+                quantized_filename="bielik-7b-instruct-v0.1.Q8_0.gguf",
+                repeat_last_n=64,
+            ),
         }
     ),
 )
+
+
+@set_chat_profiles
+def prepare_profiles(user: Any) -> list[ChatProfile]:
+    """
+    Prepare chat profiles allowing to select service providers
+    """
+
+    return [
+        ChatProfile(
+            name="bielik:7b",
+            markdown_description="bielik:7b",
+            default=False,
+        ),
+        ChatProfile(
+            name="bielik:7bQ4",
+            markdown_description="bielik:7bQ4",
+            default=False,
+        ),
+        ChatProfile(
+            name="bielik:7bQ8",
+            markdown_description="bielik:7bQ8",
+            default=True,
+        ),
+    ]
 
 
 @set_starters
@@ -99,6 +138,10 @@ def prepare_starters(user: Any) -> list[Starter]:
         Starter(
             label="Co to znaczy?",
             message='Co to znaczy jak ktoś powiedział do mnie "ej weźże no!" ?',
+        ),
+        Starter(
+            label="Powódź",
+            message="Czy powódź jest zjawiskiem ekstremalnym?",
         ),
     ]
 
@@ -125,7 +168,7 @@ async def prepare() -> None:
         Tokenization(tokenize_text=lambda text, **extra: [0 for _ in text]),
         TextEmbedding(embed=fastembed_text_embedding),
         MRSChatConfig(
-            model="bielik:7b",
+            model=str(user_session.get("chat_profile", "bielik:7bQ4")),  # type: ignore
             temperature=DEFAULT_TEMPERATURE,
         ),
     )
