@@ -27,13 +27,11 @@ from chainlit.input_widget import TextInput
 from draive import (
     LMM,
     AudioBase64Content,
-    AudioDataContent,
     AudioURLContent,
     ConversationMessage,
     ConversationMessageChunk,
     DataModel,
     ImageBase64Content,
-    ImageDataContent,
     ImageURLContent,
     MultimodalContent,
     ScopeDependencies,
@@ -41,9 +39,8 @@ from draive import (
     TextContent,
     TextEmbedding,
     Tokenization,
-    ToolCallStatus,
+    ToolStatus,
     VideoBase64Content,
-    VideoDataContent,
     VideoURLContent,
     VolatileAccumulativeMemory,
     VolatileVectorIndex,
@@ -53,6 +50,7 @@ from draive import (
 )
 from draive.fastembed import FastembedTextConfig, fastembed_text_embedding
 from draive.mrs import MRSChatConfig, MRSClient, mrs_lmm_invocation
+from draive.ollama import OllamaChatConfig, OllamaClient, ollama_lmm_invocation
 from features.chat import chat_respond
 from features.knowledge import index_pdf
 from mistralrs import Architecture, Which
@@ -73,11 +71,12 @@ ZAWSZE ODPOWIADAJ PO POLSKU!
 # regardless of selected service selection
 # those are definitions of external services access methods
 dependencies: Final[ScopeDependencies] = ScopeDependencies(
+    OllamaClient,
     MRSClient(
         models={
             "bielik:7b": Which.Plain(
                 model_id="speakleash/Bielik-7B-Instruct-v0.1",
-                arch=Architecture.Llama,
+                arch=Architecture.Mixtral,
                 tokenizer_json=None,
                 repeat_last_n=64,
             ),
@@ -106,6 +105,11 @@ def prepare_profiles(user: Any) -> list[ChatProfile]:
 
     return [
         ChatProfile(
+            name="bielik:ollama",
+            markdown_description="bielik:ollama",
+            default=True,
+        ),
+        ChatProfile(
             name="bielik:7b",
             markdown_description="bielik:7b",
             default=False,
@@ -118,7 +122,7 @@ def prepare_profiles(user: Any) -> list[ChatProfile]:
         ChatProfile(
             name="bielik:7bQ8",
             markdown_description="bielik:7bQ8",
-            default=True,
+            default=False,
         ),
     ]
 
@@ -162,13 +166,19 @@ async def prepare() -> None:
     # select services based on current profile and form a base state for session
     state: ScopeState = ScopeState(
         VolatileVectorIndex(),  # it will be used as a knowledge base
-        LMM(invocation=mrs_lmm_invocation),
+        LMM(invocation=ollama_lmm_invocation)
+        if user_session.get("chat_profile", "bielik:7bQ4") == "bielik:ollama"  # type: ignore
+        else LMM(invocation=mrs_lmm_invocation),
         FastembedTextConfig(model="nomic-ai/nomic-embed-text-v1.5"),
         # use fake tokenizer
         Tokenization(tokenize_text=lambda text, **extra: [0 for _ in text]),
         TextEmbedding(embed=fastembed_text_embedding),
         MRSChatConfig(
             model=str(user_session.get("chat_profile", "bielik:7bQ4")),  # type: ignore
+            temperature=DEFAULT_TEMPERATURE,
+        ),
+        OllamaChatConfig(
+            model="mwiewior/bielik",
             temperature=DEFAULT_TEMPERATURE,
         ),
     )
@@ -253,7 +263,7 @@ async def message(  # noqa: C901, PLR0912
                                     response_message.elements.append(other)  # pyright: ignore[reportArgumentType]
                                     await response_message.update()
 
-                    case ToolCallStatus() as tool_status:
+                    case ToolStatus() as tool_status:
                         ctx.log_debug("Received tool status: %s", tool_status)
                         # for a tool status add or update its progress indicator
                         step: Step
@@ -272,7 +282,7 @@ async def message(  # noqa: C901, PLR0912
                                 case "STARTED":
                                     await step.send()
 
-                                case "RUNNING":
+                                case "PROGRESS":
                                     if content := tool_status.content:
                                         # stream tool update status if provided
                                         await step.stream_token(str(content))
@@ -444,7 +454,7 @@ async def _as_multimodal_content(  # noqa: C901, PLR0912
     return MultimodalContent.of(*parts)
 
 
-def _as_message_content(  # noqa: C901
+def _as_message_content(
     content: MultimodalContent,
 ) -> list[Text | Image | Audio | Video | Component]:
     result: list[Text | Image | Audio | Video | Component] = []
@@ -459,26 +469,17 @@ def _as_message_content(  # noqa: C901
             case ImageBase64Content():
                 raise NotImplementedError("Base64 content is not supported yet")
 
-            case ImageDataContent():
-                raise NotImplementedError("Bytes content is not supported yet")
-
             case AudioURLContent() as audio_url:
                 result.append(Audio(url=audio_url.audio_url))
 
             case AudioBase64Content():
                 raise NotImplementedError("Base64 content is not supported yet")
 
-            case AudioDataContent():
-                raise NotImplementedError("Bytes content is not supported yet")
-
             case VideoURLContent() as video_url:
                 result.append(Video(url=video_url.video_url))
 
             case VideoBase64Content():
                 raise NotImplementedError("Base64 content is not supported yet")
-
-            case VideoDataContent():
-                raise NotImplementedError("Bytes content is not supported yet")
 
             case DataModel() as data:
                 result.append(Component(props=data.as_dict()))

@@ -6,7 +6,9 @@ Built using [draive](https://github.com/miquido/draive) and based on chat exampl
 
 ## Setup
 
-To setup the project please use `make venv` command. Python 3.12+ is required, you can specify path tu it by using additional argument `make venv PYTHON_ALIAS=path/to/python`. Additionally mistralrs requires to have rust compiler installed. You can install it by using `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh` command. Make sure to activate virtual environment by using `. ./.venv/bin/activate`.
+To setup the project please use `make venv` command. Python 3.12+ is required, you can specify path tu it by using additional argument `make venv PYTHON_ALIAS=path/to/python`. Default setup requires running Bielik using ollama. Make sure to activate virtual environment by using `. ./.venv/bin/activate`.
+
+Alternatively you can use mistralrs to run the model. To do so you can install it manually or use additional `INSTALL_OPTIONS` parameter when preparing the environment `make venv INSTALL_OPTIONS=".[dev,mistralrs]"`. This setup requires to have rust compiler installed. You can install it by using `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh` command. 
 
 ## Run
 
